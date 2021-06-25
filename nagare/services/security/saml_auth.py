@@ -317,7 +317,7 @@ class Authentication(cookie_auth.Authentication):
         credentials = {}
 
         req = {
-            'script_name': request.script_name,
+            'script_name': request.path_info.rstrip('/'),
             'http_host': request.host,
             'post_data': request.params
         }
@@ -340,7 +340,7 @@ class Authentication(cookie_auth.Authentication):
 
     def process_logout_response(self, request):
         req = {
-            'script_name': request.script_name,
+            'script_name': request.path_info.rstrip('/'),
             'http_host': request.host,
             'get_data': request.params
         }
