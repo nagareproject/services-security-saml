@@ -12,6 +12,7 @@
 import os
 import re
 import copy
+import random
 from base64 import urlsafe_b64encode, urlsafe_b64decode
 
 from jwcrypto import jwk
@@ -95,7 +96,7 @@ class Authentication(cookie_auth.Authentication):
         copy.deepcopy(cookie_auth.Authentication.CONFIG_SPEC),
         principal_attribute='string',
         key='string(default=None, help="cookie encoding key")',
-        certs_directory='string(default=$data)',
+        certs_directory='string(default="$data")',
 
         strict='boolean(default=True)',
         debug='boolean(default=False)',
@@ -189,7 +190,13 @@ class Authentication(cookie_auth.Authentication):
     CONFIG_SPEC['cookie']['activated'] = 'boolean(default=False)'
     CONFIG_SPEC['cookie']['encrypt'] = 'boolean(default=False)'
 
-    def __init__(self, name, dist, principal_attribute, key, certs_directory, services_service, **config):
+    def __init__(
+            self,
+            name, dist,
+            principal_attribute, key, certs_directory,
+            services_service,
+            **config
+    ):
         services_service(
             super(Authentication, self).__init__,
             name, dist,
@@ -209,6 +216,7 @@ class Authentication(cookie_auth.Authentication):
             config['organization'] = {k: dict(name=k, **v) for k, v in organization.items()}
 
         self.config = config
+        self.ident = str(random.randint(10000000, 99999999))
 
     @staticmethod
     def filter_credentials(credentials, to_keep):
@@ -234,7 +242,9 @@ class Authentication(cookie_auth.Authentication):
 
         return errors, metadata
 
-    def handle_start(self, _):
+    def handle_start(self, _, saml_listener_service):
+        saml_listener_service.register_service(self.ident, self)
+
         metadata_url = self.config.get('idp', {}).get('metadataUrl')
         if metadata_url:
             idp = OneLogin_Saml2_IdPMetadataParser().parse_remote(metadata_url).get('idp', {})
@@ -274,7 +284,7 @@ class Authentication(cookie_auth.Authentication):
         state = b'%d#%d#%s' % (session_id, state_id, (action_id or '').encode('ascii'))
         state = padder.update(state) + padder.finalize()
         state = encryptor.update(state) + encryptor.finalize()
-        state = '#{}#{}{}'.format(self.name, type_, urlsafe_b64encode(state).decode('ascii'))
+        state = '#{}#{}{}'.format(self.ident, type_, urlsafe_b64encode(state).decode('ascii'))
 
         return state
 

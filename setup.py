@@ -54,6 +54,7 @@ setup(
         'cryptography',
         'nagare-partial',
         'nagare-services-security',
+        'nagare-services-security-saml-listener',
         'nagare-renderers-xml',
     ],
     entry_points='''
