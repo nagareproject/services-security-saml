@@ -205,8 +205,8 @@ class Authentication(cookie_auth.Authentication):
         )
 
         self.principal_attribute = principal_attribute
-        key = key or urlsafe_b64encode(os.urandom(32)).decode('ascii')
-        self.cipher = Cipher(algorithms.AES(urlsafe_b64decode(key)), modes.CBC(os.urandom(16)))
+        self.key = key or urlsafe_b64encode(os.urandom(32)).decode('ascii')
+        self.iv = modes.CBC(os.urandom(16))
         self.jwk_key = jwk.JWK(kty='oct', k=key)
         self.certs_directory = certs_directory
 
@@ -217,6 +217,10 @@ class Authentication(cookie_auth.Authentication):
 
         self.config = config
         self.ident = str(random.randint(10000000, 99999999))
+
+    @property
+    def cipher(self):
+        return Cipher(algorithms.AES(urlsafe_b64decode(self.key)), self.iv)
 
     @staticmethod
     def filter_credentials(credentials, to_keep):

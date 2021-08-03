@@ -20,7 +20,7 @@ class Metadata(command.Command):
 
     def set_arguments(self, parser):
         super(Metadata, self).set_arguments(parser)
-        parser.add_argument('-n', '--name', help='name of the SAML service name')
+        parser.add_argument('-n', '--name', help='name of the SAML service')
 
     @staticmethod
     def run(name, services_service):
