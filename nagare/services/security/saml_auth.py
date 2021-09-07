@@ -223,6 +223,20 @@ class Authentication(cookie_auth.Authentication):
         return Cipher(algorithms.AES(urlsafe_b64decode(self.key)), self.iv)
 
     @staticmethod
+    def create_request(request):
+        scheme, host, port = request.scheme_hostname_port
+        if port and ((scheme == 'http' and port != 80) or (scheme == 'https' and port != 443)):
+            host += ':' + str(port)
+
+        return {
+            'https': 'on' if scheme == 'https' else 'off',
+            'http_host': host,
+            'script_name': request.script_name,
+            'path_info': request.path_info,
+            'post_data': request.params
+        }
+
+    @staticmethod
     def filter_credentials(credentials, to_keep):
         return {k: v for k, v in credentials.items() if k in to_keep | {'_name_id', '_session_index'}}
 
@@ -330,12 +344,7 @@ class Authentication(cookie_auth.Authentication):
         principal = None
         credentials = {}
 
-        req = {
-            'script_name': request.path_info.rstrip('/'),
-            'http_host': request.host,
-            'post_data': request.params
-        }
-        auth = OneLogin_Saml2_Auth(req, self.config, self.certs_directory)
+        auth = OneLogin_Saml2_Auth(self.create_request(request), self.config, self.certs_directory)
         auth.process_response()
 
         if auth.get_errors() or not auth.is_authenticated:
@@ -353,13 +362,11 @@ class Authentication(cookie_auth.Authentication):
         return redirect, principal, credentials
 
     def process_logout_response(self, request):
-        req = {
-            'script_name': request.path_info.rstrip('/'),
-            'http_host': request.host,
-            'get_data': request.params
-        }
+        scheme, host, port = request.scheme_hostname_port
+        if (scheme == 'http' and port != 80) or (scheme == 'https' and port != 443):
+            host += ':' + str(port)
 
-        auth = OneLogin_Saml2_Auth(req, self.config, self.certs_directory)
+        auth = OneLogin_Saml2_Auth(self.create_request(request), self.config, self.certs_directory)
         auth.process_slo()
 
         error = auth.get_errors()
