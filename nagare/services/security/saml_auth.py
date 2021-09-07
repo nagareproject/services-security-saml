@@ -150,6 +150,8 @@ class Authentication(cookie_auth.Authentication):
             'authn_requests_signed': 'boolean(default=None)',
             'logout_request_signed': 'boolean(default=None)',
             'logout_response_signed': 'boolean(default=None)',
+            'want_attribute_statement': 'boolean(default=None)',
+            'allow_repeat_attribute_name': 'boolean(default=None)',
             'metadata_valid_until': 'string(default=None)',
             'metadata_cache_duration': 'integer(default=None)',
             'sign_metadata': {
