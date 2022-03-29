@@ -28,7 +28,7 @@ from nagare.renderers import xml
 from nagare.services.security import cookie_auth
 
 
-class Log(xml.Component):
+class Log(xml.Renderable):
     ACTION_PRIORITY = 5
 
     def __init__(self, renderer, create_redirection_url):
