@@ -1,5 +1,5 @@
 # --
-# Copyright (c) 2008-2022 Net-ng.
+# Copyright (c) 2008-2023 Net-ng.
 # All rights reserved.
 #
 # This software is licensed under the BSD License, as described in
@@ -40,7 +40,9 @@ class Metadata(command.Command):
                         for e in to_names(children):
                             yield name + tuple(e)
 
-            saml_services = services_service.find_services(lambda service: isinstance(service, saml_auth.Authentication))
+            saml_services = services_service.find_services(
+                lambda service: isinstance(service, saml_auth.Authentication)
+            )
             names = list(to_names(saml_services))
             if not names:
                 print('No SAML service found')

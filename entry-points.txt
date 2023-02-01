@@ -1,0 +1,5 @@
+[nagare.commands]
+saml = nagare.admin.saml_commands:Commands
+
+[nagare.commands.saml]
+metadata = nagare.admin.saml_commands:Metadata

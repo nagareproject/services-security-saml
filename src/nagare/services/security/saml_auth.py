@@ -1,7 +1,7 @@
 # Encoding: utf-8
 
 # --
-# Copyright (c) 2008-2022 Net-ng.
+# Copyright (c) 2008-2023 Net-ng.
 # All rights reserved.
 #
 # This software is licensed under the BSD License, as described in
@@ -9,23 +9,22 @@
 # this distribution.
 # --
 
-import os
-import re
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 import copy
+import os
 import random
-from base64 import urlsafe_b64encode, urlsafe_b64decode
+import re
 
-from jwcrypto import jwk
-from python_jwt import generate_jwt, verify_jwt
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from onelogin.saml2.auth import OneLogin_Saml2_Auth
-from onelogin.saml2.settings import OneLogin_Saml2_Settings
-from onelogin.saml2.idp_metadata_parser import OneLogin_Saml2_IdPMetadataParser
-
+from jwcrypto import jwk
 from nagare import partial
 from nagare.renderers import xml
 from nagare.services.security import cookie_auth
+from onelogin.saml2.auth import OneLogin_Saml2_Auth
+from onelogin.saml2.idp_metadata_parser import OneLogin_Saml2_IdPMetadataParser
+from onelogin.saml2.settings import OneLogin_Saml2_Settings
+from python_jwt import generate_jwt, verify_jwt
 
 
 class Log(xml.Renderable):
@@ -55,10 +54,7 @@ class Log(xml.Renderable):
     def render(self, h):
         if self._action is not None:
             action_id, _ = self.renderer.register_callback(
-                self,
-                self.ACTION_PRIORITY,
-                self._action,
-                self.with_request, *self.args, **self.kw
+                self, self.ACTION_PRIORITY, self._action, self.with_request, *self.args, **self.kw
             )
         else:
             action_id = None
@@ -97,50 +93,29 @@ class Authentication(cookie_auth.Authentication):
         principal_attribute='string',
         key='string(default=None, help="cookie encoding key")',
         certs_directory='string(default="$data")',
-
         strict='boolean(default=True)',
         debug='boolean(default=False)',
-
         sp={
             'entity_id': 'string',
-            'assertion_consumer_service': {
-                'url': 'string',
-                'binding': 'string(default=None)'
-            },
-            'single_logout_service': {
-                'url': 'string(default=None)',
-                'binding': 'string(default=None)'
-
-            },
+            'assertion_consumer_service': {'url': 'string', 'binding': 'string(default=None)'},
+            'single_logout_service': {'url': 'string(default=None)', 'binding': 'string(default=None)'},
             'attribute_consuming_service': {
                 'service_name': 'string(default=None)',
-                'service_description': 'string(default=None)'
+                'service_description': 'string(default=None)',
             },
             'x509cert': 'string(default=None)',
-            'private_key': 'string(default=None)'
+            'private_key': 'string(default=None)',
         },
-
         idp={
             'metadata_url': 'string(default=None)',
-
             'entity_id': 'string(default=None)',
-            'single_sign_on_service': {
-                'url': 'string(default=None)',
-                'binding': 'string(default=None)'
-            },
-            'single_logout_service': {
-                'url': 'string(default=None)',
-                'binding': 'string(default=None)'
-            },
+            'single_sign_on_service': {'url': 'string(default=None)', 'binding': 'string(default=None)'},
+            'single_logout_service': {'url': 'string(default=None)', 'binding': 'string(default=None)'},
             'x509cert': 'string(default=None)',
             'cert_fingerprint': 'boolean(default=None)',
             'cert_fingerprint_algorithm': 'string(default=None)',
-            'x509cert_multi': {
-                'signing': 'string(default=None)',
-                'encryption': 'string(default=None)'
-            }
+            'x509cert_multi': {'signing': 'string(default=None)', 'encryption': 'string(default=None)'},
         },
-
         security={
             'want_name_id_encrypted': 'boolean(default=None)',
             'name_id_encrypted': 'boolean(default=None)',
@@ -154,56 +129,29 @@ class Authentication(cookie_auth.Authentication):
             'allow_repeat_attribute_name': 'boolean(default=None)',
             'metadata_valid_until': 'string(default=None)',
             'metadata_cache_duration': 'integer(default=None)',
-            'sign_metadata': {
-                'key_file_name': 'string(default=None)',
-                'cert_file_name': 'string(default=None)'
-            }
+            'sign_metadata': {'key_file_name': 'string(default=None)', 'cert_file_name': 'string(default=None)'},
         },
-
         contact_person={
-            'technical': {
-                'given_name': 'string(default=None)',
-                'email_address': 'string(default=None)',
-            },
-            'support': {
-                'given_name': 'string(default=None)',
-                'email_address': 'string(default=None)',
-            },
-            'administrative': {
-                'given_name': 'string(default=None)',
-                'email_address': 'string(default=None)',
-            },
-            'billing': {
-                'given_name': 'string(default=None)',
-                'email_address': 'string(default=None)',
-            },
-            'other': {
-                'given_name': 'string(default=None)',
-                'email_address': 'string(default=None)',
-            }
+            'technical': {'given_name': 'string(default=None)', 'email_address': 'string(default=None)'},
+            'support': {'given_name': 'string(default=None)', 'email_address': 'string(default=None)'},
+            'administrative': {'given_name': 'string(default=None)', 'email_address': 'string(default=None)'},
+            'billing': {'given_name': 'string(default=None)', 'email_address': 'string(default=None)'},
+            'other': {'given_name': 'string(default=None)', 'email_address': 'string(default=None)'},
         },
-        organization={
-            '__many__': {
-                'displayname': 'string(default=None)',
-                'url': 'string(default=None)'
-            }
-        }
+        organization={'__many__': {'displayname': 'string(default=None)', 'url': 'string(default=None)'}},
     )
     CONFIG_SPEC['cookie']['activated'] = 'boolean(default=False)'
     CONFIG_SPEC['cookie']['encrypt'] = 'boolean(default=False)'
 
-    def __init__(
-            self,
-            name, dist,
-            principal_attribute, key, certs_directory,
-            services_service,
-            **config
-    ):
+    def __init__(self, name, dist, principal_attribute, key, certs_directory, services_service, **config):
         services_service(
             super(Authentication, self).__init__,
-            name, dist,
-            principal_attribute=principal_attribute, key=key, certs_directory=certs_directory,
-            **config
+            name,
+            dist,
+            principal_attribute=principal_attribute,
+            key=key,
+            certs_directory=certs_directory,
+            **config,
         )
 
         self.principal_attribute = principal_attribute
@@ -235,7 +183,7 @@ class Authentication(cookie_auth.Authentication):
             'http_host': host,
             'script_name': request.script_name,
             'path_info': request.path_info,
-            'post_data': request.params
+            'post_data': request.params,
         }
 
     @staticmethod
@@ -314,7 +262,9 @@ class Authentication(cookie_auth.Authentication):
 
     def create_logout_request(self, name_id, session_index, session_id, state_id, action_id):
         state = self.create_state(0, session_id, state_id, action_id)
-        return OneLogin_Saml2_Auth({}, self.config, self.certs_directory).logout(state)  # name_id=name_id, session_index=session_index)
+        return OneLogin_Saml2_Auth({}, self.config, self.certs_directory).logout(
+            state
+        )  # name_id=name_id, session_index=session_index)
 
     def is_auth_response(self, request):
         is_valid_response = False
@@ -357,8 +307,6 @@ class Authentication(cookie_auth.Authentication):
                 self.logger.error('SAML error: no credentials ' + ' ,'.join(auth.get_errors()))
             else:
                 principal, credentials = self.normalize_credentials(credentials)
-                # credentials['_session_index'] = auth.get_session_index()
-                # credentials['_name_id'] = auth.get_nameid()
                 redirect = True
 
         return redirect, principal, credentials
@@ -392,17 +340,12 @@ class Authentication(cookie_auth.Authentication):
                 redirect = self.process_logout_response(request)
 
             if redirect:
-                new_response = request.create_redirect_response(
-                    response=response,
-                    _s=session_id,
-                    _c='%05d' % state_id
-                )
+                new_response = request.create_redirect_response(response=response, _s=session_id, _c='%05d' % state_id)
         else:
             principal, credentials = self.retrieve_credentials(session)
             if not principal:
                 principal, credentials, r = super(Authentication, self).get_principal(
-                    request=request, response=response,
-                    **params
+                    request=request, response=response, **params
                 )
 
         if action_id:
