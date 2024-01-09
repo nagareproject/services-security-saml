@@ -9,22 +9,21 @@
 # this distribution.
 # --
 
-from base64 import urlsafe_b64decode, urlsafe_b64encode
-import copy
 import os
-import random
 import re
+import copy
+import random
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 
-from cryptography.hazmat.primitives import padding
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from jwcrypto import jwk
+from jose import jwk, jwt
+from onelogin.saml2.auth import OneLogin_Saml2_Auth
+from onelogin.saml2.settings import OneLogin_Saml2_Settings
+from onelogin.saml2.idp_metadata_parser import OneLogin_Saml2_IdPMetadataParser
+
 from nagare import partial
+from nagare.security import fernet
 from nagare.renderers import xml
 from nagare.services.security import cookie_auth
-from onelogin.saml2.auth import OneLogin_Saml2_Auth
-from onelogin.saml2.idp_metadata_parser import OneLogin_Saml2_IdPMetadataParser
-from onelogin.saml2.settings import OneLogin_Saml2_Settings
-from python_jwt import generate_jwt, verify_jwt
 
 
 class Log(xml.Renderable):
@@ -155,9 +154,9 @@ class Authentication(cookie_auth.Authentication):
         )
 
         self.principal_attribute = principal_attribute
-        self.key = key or urlsafe_b64encode(os.urandom(32)).decode('ascii')
-        self.iv = modes.CBC(os.urandom(16))
-        self.jwk_key = jwk.JWK(kty='oct', k=key)
+        key = urlsafe_b64decode(key) if key else os.urandom(32)
+        self.jwk_key = jwk.construct(key, 'HS256')
+        self.key = urlsafe_b64encode(key).decode('ascii')
         self.certs_directory = certs_directory
 
         config = config_to_settings(config)
@@ -166,11 +165,7 @@ class Authentication(cookie_auth.Authentication):
             config['organization'] = {k: dict(name=k, **v) for k, v in organization.items()}
 
         self.config = config
-        self.ident = str(random.randint(10000000, 99999999))
-
-    @property
-    def cipher(self):
-        return Cipher(algorithms.AES(urlsafe_b64decode(self.key)), self.iv)
+        self.ident = str(random.randint(10000000, 99999999))  # noqa: S311
 
     @staticmethod
     def create_request(request):
@@ -196,7 +191,7 @@ class Authentication(cookie_auth.Authentication):
 
     @staticmethod
     def extract_credentials(auth):
-        return auth.get_friendlyname_attributes()
+        return auth.get_friendlyname_attributes() or auth.get_attributes()
 
     def normalize_credentials(self, credentials):
         credentials = {k: (v[0] if len(v) == 1 else v) for k, v in credentials.items()}
@@ -215,8 +210,7 @@ class Authentication(cookie_auth.Authentication):
 
         metadata_url = self.config.get('idp', {}).get('metadataUrl')
         if metadata_url:
-            idp = OneLogin_Saml2_IdPMetadataParser().parse_remote(metadata_url).get('idp', {})
-            self.config['idp'] = idp
+            self.config['idp'] = OneLogin_Saml2_IdPMetadataParser().parse_remote(metadata_url).get('idp', {})
 
     def to_cookie(self, **credentials):
         credentials = self.filter_credentials(credentials, {self.principal_attribute})
@@ -224,7 +218,7 @@ class Authentication(cookie_auth.Authentication):
         if self.encrypted:
             cookie = super(Authentication, self).to_cookie(credentials.pop(self.principal_attribute), **credentials)
         else:
-            cookie = generate_jwt(credentials, self.jwk_key, 'HS256')
+            cookie = jwt.encode(credentials, self.jwk_key, 'HS256')
 
         return cookie
 
@@ -233,7 +227,7 @@ class Authentication(cookie_auth.Authentication):
             principal, credentials = super(Authentication, self).from_cookie(cookie, max_age)
             credentials[self.principal_attribute] = principal
         else:
-            _, credentials = verify_jwt(cookie.decode('ascii'), self.jwk_key, ['HS256'], checks_optional=True)
+            credentials = jwt.decode(cookie.decode('ascii'), self.jwk_key, 'HS256')
             credentials = self.filter_credentials(credentials, {self.principal_attribute})
 
         return credentials.get(self.principal_attribute), credentials
@@ -246,15 +240,8 @@ class Authentication(cookie_auth.Authentication):
         return credentials.get(self.principal_attribute), credentials
 
     def create_state(self, type_, session_id, state_id, action_id):
-        encryptor = self.cipher.encryptor()
-        padder = padding.PKCS7(128).padder()
-
         state = b'%d#%d#%s' % (session_id, state_id, (action_id or '').encode('ascii'))
-        state = padder.update(state) + padder.finalize()
-        state = encryptor.update(state) + encryptor.finalize()
-        state = '#{}#{}{}'.format(self.ident, type_, urlsafe_b64encode(state).decode('ascii'))
-
-        return state
+        return '#{}#{}{}'.format(self.ident, type_, fernet.Fernet(self.key).encrypt(state).decode('ascii'))
 
     def create_login_request(self, session_id, state_id, action_id):
         state = self.create_state(1, session_id, state_id, action_id)
@@ -278,12 +265,7 @@ class Authentication(cookie_auth.Authentication):
                 state = state.rsplit('#', 1)[1]
                 login = state[0] == '1'
 
-                decryptor = self.cipher.decryptor()
-                unpadder = padding.PKCS7(128).unpadder()
-
-                state = decryptor.update(urlsafe_b64decode(state[1:])) + decryptor.finalize()
-                state = unpadder.update(state) + unpadder.finalize()
-
+                state = fernet.Fernet(self.key).decrypt(state[1:])
                 session_id, state_id, action_id = state.decode('ascii').split('#')
                 is_valid_response = True
             except Exception as e:
