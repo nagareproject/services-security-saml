@@ -12,7 +12,6 @@
 import os
 import re
 import copy
-import random
 from base64 import urlsafe_b64decode, urlsafe_b64encode
 
 from jose import jwk, jwt
@@ -91,6 +90,7 @@ class Authentication(cookie_auth.Authentication):
         copy.deepcopy(cookie_auth.Authentication.CONFIG_SPEC),
         principal_attribute='string',
         key='string(default=None, help="cookie encoding key")',
+        ident='string(default="saml", help="identifier of the SAML service")',
         certs_directory='string(default="$data")',
         strict='boolean(default=True)',
         debug='boolean(default=False)',
@@ -142,13 +142,14 @@ class Authentication(cookie_auth.Authentication):
     CONFIG_SPEC['cookie']['activated'] = 'boolean(default=False)'
     CONFIG_SPEC['cookie']['encrypt'] = 'boolean(default=False)'
 
-    def __init__(self, name, dist, principal_attribute, key, certs_directory, services_service, **config):
+    def __init__(self, name, dist, principal_attribute, key, ident, certs_directory, services_service, **config):
         services_service(
             super(Authentication, self).__init__,
             name,
             dist,
             principal_attribute=principal_attribute,
             key=key,
+            ident=ident,
             certs_directory=certs_directory,
             **config,
         )
@@ -157,6 +158,7 @@ class Authentication(cookie_auth.Authentication):
         key = urlsafe_b64decode(key) if key else os.urandom(32)
         self.jwk_key = jwk.construct(key, 'HS256')
         self.key = urlsafe_b64encode(key).decode('ascii')
+        self.ident = ident
         self.certs_directory = certs_directory
 
         config = config_to_settings(config)
@@ -165,7 +167,6 @@ class Authentication(cookie_auth.Authentication):
             config['organization'] = {k: dict(name=k, **v) for k, v in organization.items()}
 
         self.config = config
-        self.ident = str(random.randint(10000000, 99999999))  # noqa: S311
 
     @staticmethod
     def create_request(request):
