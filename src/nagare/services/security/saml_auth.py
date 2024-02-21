@@ -90,7 +90,6 @@ class Authentication(cookie_auth.Authentication):
         copy.deepcopy(cookie_auth.Authentication.CONFIG_SPEC),
         principal_attribute='string',
         key='string(default=None, help="cookie encoding key")',
-        ident='string(default="saml", help="identifier of the SAML service")',
         certs_directory='string(default="$data")',
         strict='boolean(default=True)',
         debug='boolean(default=False)',
@@ -142,23 +141,22 @@ class Authentication(cookie_auth.Authentication):
     CONFIG_SPEC['cookie']['activated'] = 'boolean(default=False)'
     CONFIG_SPEC['cookie']['encrypt'] = 'boolean(default=False)'
 
-    def __init__(self, name, dist, principal_attribute, key, ident, certs_directory, services_service, **config):
+    def __init__(self, name, dist, principal_attribute, key, certs_directory, services_service, **config):
         services_service(
             super(Authentication, self).__init__,
             name,
             dist,
             principal_attribute=principal_attribute,
             key=key,
-            ident=ident,
             certs_directory=certs_directory,
             **config,
         )
 
+        self.ident = name
         self.principal_attribute = principal_attribute
         key = urlsafe_b64decode(key) if key else os.urandom(32)
         self.jwk_key = jwk.construct(key, 'HS256')
         self.key = urlsafe_b64encode(key).decode('ascii')
-        self.ident = ident
         self.certs_directory = certs_directory
 
         config = config_to_settings(config)
