@@ -120,6 +120,7 @@ class Authentication(cookie_auth.Authentication):
             'want_assertions_signed': 'boolean(default=None)',
             'want_assertions_encrypted': 'boolean(default=None)',
             'want_messages_signed': 'boolean(default=None)',
+            'requested_authn_context': 'boolean(default=None)',
             'authn_requests_signed': 'boolean(default=None)',
             'logout_request_signed': 'boolean(default=None)',
             'logout_response_signed': 'boolean(default=None)',
@@ -242,9 +243,9 @@ class Authentication(cookie_auth.Authentication):
         state = b'%d#%d#%s' % (session_id, state_id, (action_id or '').encode('ascii'))
         return '#{}#{}{}'.format(self.ident, type_, fernet.Fernet(self.key).encrypt(state).decode('ascii'))
 
-    def create_login_request(self, session_id, state_id, action_id):
+    def create_login_request(self, session_id, state_id, action_id, *args, **kw):
         state = self.create_state(1, session_id, state_id, action_id)
-        return OneLogin_Saml2_Auth({}, self.config, self.certs_directory).login(state)
+        return OneLogin_Saml2_Auth({}, self.config, self.certs_directory).login(state, *args, **kw)
 
     def create_logout_request(self, name_id, session_index, session_id, state_id, action_id):
         state = self.create_state(0, session_id, state_id, action_id)
@@ -334,8 +335,8 @@ class Authentication(cookie_auth.Authentication):
 
         return principal, credentials, new_response
 
-    def login(self, h):
-        return Log(h, self.create_login_request)
+    def login(self, h, *args, **kw):
+        return Log(h, lambda *_args, **_kw: self.create_login_request(*args, *_args, **kw, **_kw))
 
     def logout(self, h, location='', delete_session=True, user=None):
         user = super(Authentication, self).logout(location, delete_session, user)
