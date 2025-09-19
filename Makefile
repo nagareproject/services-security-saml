@@ -6,7 +6,7 @@ clean:
 	@find src \( -name '*.py[co]' -o -name '__pycache__' \) -delete
 	@rm -rf doc/_build/*
 
-update-precommit:
+upgrade-precommit:
 	python -m pre_commit autoupdate
 
 install-dev: clean

@@ -1,7 +1,5 @@
-# Encoding: utf-8
-
 # --
-# Copyright (c) 2008-2024 Net-ng.
+# Copyright (c) 2008-2025 Net-ng.
 # All rights reserved.
 #
 # This software is licensed under the BSD License, as described in
@@ -36,6 +34,7 @@ class Log(xml.Renderable):
         self.with_request = False
         self.args = ()
         self.kw = {}
+        self.action_id = None
 
     @partial.max_number_of_args(2)
     def action(self, action, args, with_request=False, **kw):
@@ -46,20 +45,18 @@ class Log(xml.Renderable):
 
         return self
 
-    def set_sync_action(self, action_id, params):
-        pass
+    def set_action(self, action_id, _):
+        self.action_id = action_id
 
     def render(self, h):
         if self._action is not None:
-            action_id, _ = self.renderer.register_callback(
+            self.renderer.register_callback(
                 self, self.ACTION_PRIORITY, self._action, self.with_request, *self.args, **self.kw
             )
-        else:
-            action_id = None
 
         response = h.response
         response.status_code = 307
-        response.headers['Location'] = self.create_redirection_url(h.session_id, h.state_id, action_id)
+        response.headers['Location'] = self.create_redirection_url(h.session_id, h.state_id, self.action_id)
 
         return response
 
@@ -144,7 +141,7 @@ class Authentication(cookie_auth.Authentication):
 
     def __init__(self, name, dist, principal_attribute, key, certs_directory, services_service, **config):
         services_service(
-            super(Authentication, self).__init__,
+            super().__init__,
             name,
             dist,
             principal_attribute=principal_attribute,
@@ -210,13 +207,17 @@ class Authentication(cookie_auth.Authentication):
 
         metadata_url = self.config.get('idp', {}).get('metadataUrl')
         if metadata_url:
-            self.config['idp'] = OneLogin_Saml2_IdPMetadataParser().parse_remote(metadata_url).get('idp', {})
+            self.config['idp'] = (
+                OneLogin_Saml2_IdPMetadataParser()
+                .parse_remote(metadata_url, headers={'User-Agent': 'Nagare security'})
+                .get('idp', {})
+            )
 
     def to_cookie(self, **credentials):
         credentials = self.filter_credentials(credentials, {self.principal_attribute})
 
         if self.encrypted:
-            cookie = super(Authentication, self).to_cookie(credentials.pop(self.principal_attribute), **credentials)
+            cookie = super().to_cookie(credentials.pop(self.principal_attribute), **credentials)
         else:
             cookie = jwt.encode(credentials, self.jwk_key, 'HS256')
 
@@ -224,7 +225,7 @@ class Authentication(cookie_auth.Authentication):
 
     def from_cookie(self, cookie, max_age):
         if self.encrypted:
-            principal, credentials = super(Authentication, self).from_cookie(cookie, max_age)
+            principal, credentials = super().from_cookie(cookie, max_age)
             credentials[self.principal_attribute] = principal
         else:
             credentials = jwt.decode(cookie.decode('ascii'), self.jwk_key, 'HS256')
@@ -326,9 +327,7 @@ class Authentication(cookie_auth.Authentication):
         else:
             principal, credentials = self.retrieve_credentials(session)
             if not principal:
-                principal, credentials, r = super(Authentication, self).get_principal(
-                    request=request, response=response, **params
-                )
+                principal, credentials, r = super().get_principal(request=request, response=response, **params)
 
         if action_id:
             request.environ['QUERY_STRING'] = action_id + '='
@@ -339,7 +338,7 @@ class Authentication(cookie_auth.Authentication):
         return Log(h, lambda *_args, **_kw: self.create_login_request(*args, *_args, **kw, **_kw))
 
     def logout(self, h, location='', delete_session=True, user=None):
-        user = super(Authentication, self).logout(location, delete_session, user)
+        user = super().logout(location, delete_session, user)
 
         name_id = user.credentials.get('_name_id') if user else None
         session = user.credentials.get('_session_index') if user else None

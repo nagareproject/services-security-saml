@@ -1,5 +1,5 @@
 # --
-# Copyright (c) 2008-2024 Net-ng.
+# Copyright (c) 2008-2025 Net-ng.
 # All rights reserved.
 #
 # This software is licensed under the BSD License, as described in
@@ -19,7 +19,7 @@ class Metadata(command.Command):
     DESC = 'display SP metadata'
 
     def set_arguments(self, parser):
-        super(Metadata, self).set_arguments(parser)
+        super().set_arguments(parser)
         parser.add_argument('-n', '--name', help='name of the SAML service')
 
     @staticmethod
